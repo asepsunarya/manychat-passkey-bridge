@@ -1,19 +1,19 @@
-# Manychat Passkey Bridge
+# Socialchat Passkey Bridge
 
-Chrome extension that automates WhatsApp passkey verification for Manychat.
+Chrome extension that automates WhatsApp passkey verification for Socialchat.
 
 ## Problem
 
-WhatsApp accounts locked with passkeys require a WebAuthn assertion signed by the account owner's authenticator, bound to the origin `web.whatsapp.com`. Because the Manychat frontend runs on a different domain, the browser cannot produce a valid assertion directly — the user had to manually copy-paste code between the browser console and the Manychat dialog.
+WhatsApp accounts locked with passkeys require a WebAuthn assertion signed by the account owner's authenticator, bound to the origin `web.whatsapp.com`. Because the Socialchat frontend runs on a different domain, the browser cannot produce a valid assertion directly — the user had to manually copy-paste code between the browser console and the Socialchat dialog.
 
 ## Solution
 
 This extension acts as a bridge:
 
-1. **Content script** injects `window.__manychatPasskeyBridge = true` into every page, so the Manychat frontend knows the extension is available.
-2. When Manychat receives a `passkey-request` from the engine (manual mode), it sends a `window.postMessage` to the extension instead of showing the manual copy-paste dialog.
+1. **Content script** injects `window.__socialchatPasskeyBridge = true` into every page, so the Socialchat frontend knows the extension is available.
+2. When Socialchat receives a `passkey-request` from the engine (manual mode), it sends a `window.postMessage` to the extension instead of showing the manual copy-paste dialog.
 3. The **background service worker** finds the open `web.whatsapp.com` tab and injects `navigator.credentials.get()` into that tab's **main world** (where the origin is correct and the authenticator can sign the assertion).
-4. The result is returned to the Manychat frontend, which submits it to the engine via the existing `POST /passkey-response/:id` API.
+4. The result is returned to the Socialchat frontend, which submits it to the engine via the existing `POST /passkey-response/:id` API.
 
 ## Installation
 
@@ -23,7 +23,7 @@ This extension acts as a bridge:
 2. Open `chrome://extensions`
 3. Enable **Developer mode** (top right)
 4. Click **Load unpacked**
-5. Select the `manychat-passkey-bridge` folder
+5. Select the `socialchat-passkey-bridge` folder
 
 ### Chrome Web Store
 
@@ -32,19 +32,19 @@ _(coming soon)_
 ## Usage
 
 1. Open `https://web.whatsapp.com` in a tab and log in to the WhatsApp account
-2. Open the Manychat frontend in another tab
+2. Open the Socialchat frontend in another tab
 3. Start the WhatsApp channel pairing flow as usual
 4. When passkey verification is requested, the extension automatically calls `navigator.credentials.get()` in the web.whatsapp.com tab
 5. The browser's native passkey prompt appears — approve it
-6. The response is sent back to Manychat automatically
+6. The response is sent back to Socialchat automatically
 
-If the extension is not installed, Manychat falls back to the manual copy-paste dialog.
+If the extension is not installed, Socialchat falls back to the manual copy-paste dialog.
 
 ## Architecture
 
 ```
-Manychat Frontend                Extension                     web.whatsapp.com
-─────────────────                ─────────                     ─────────────────
+Socialchat Frontend               Extension                     web.whatsapp.com
+──────────────────                ─────────                     ─────────────────
                   window.postMessage
   passkey-request ─────────────►  content.js
                                    │
@@ -71,13 +71,13 @@ Manychat Frontend                Extension                     web.whatsapp.com
                                  POST /passkey-response/:id
 ```
 
-## Manychat Frontend Integration
+## Socialchat Frontend Integration
 
 Add this snippet to the passkey handler in `realtime.service.js`:
 
 ```javascript
 // Check if extension is available
-if (window.__manychatPasskeyBridge) {
+if (window.__socialchatPasskeyBridge) {
   const passkeyResponse = await requestPasskeyViaExtension(publicKeyJson)
   if (passkeyResponse) {
     await submitPasskeyResponse(channelId, passkeyResponse)
@@ -100,7 +100,7 @@ function requestPasskeyViaExtension (publicKeyJson) {
 
     function handler (event) {
       if (event.source !== window) return
-      if (event.data?.type !== 'manychat-passkey-response') return
+      if (event.data?.type !== 'socialchat-passkey-response') return
       if (event.data.requestId !== requestId) return
       clearTimeout(timeout)
       window.removeEventListener('message', handler)
@@ -109,7 +109,7 @@ function requestPasskeyViaExtension (publicKeyJson) {
 
     window.addEventListener('message', handler)
     window.postMessage({
-      type: 'manychat-passkey-request',
+      type: 'socialchat-passkey-request',
       requestId,
       publicKeyJson
     }, '*')
