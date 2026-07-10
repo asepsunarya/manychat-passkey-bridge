@@ -17,13 +17,18 @@ This extension acts as a bridge:
 
 ## Installation
 
-### Developer mode (unpacked)
+### Download
 
-1. Download or clone this repo
-2. Open `chrome://extensions`
-3. Enable **Developer mode** (top right)
-4. Click **Load unpacked**
-5. Select the `socialchat-passkey-bridge` folder
+1. Download ZIP dari [Google Drive](https://drive.google.com/file/d/1eLFn40NaoZiFGbc7zLRfXhPf4Ve7Gle8/view?usp=sharing)
+2. Ekstrak file ZIP
+
+### Install (Developer mode)
+
+1. Buka `chrome://extensions`
+2. Enable **Developer mode** (pojok kanan atas)
+3. Klik **Load unpacked**
+4. Pilih folder ekstensi yang sudah diekstrak
+5. Pastikan ekstensi aktif (berwarna, tidak greyed out)
 
 ### Chrome Web Store
 
