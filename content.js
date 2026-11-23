@@ -1,18 +1,13 @@
 /**
  * content.js — runs on every page (isolated world)
  *
- * 1. Injects window.__socialchatPasskeyBridge = true into the page's main world
- *    so the Socialchat frontend knows the extension is installed.
- * 2. Listens for window 'message' events from the Socialchat frontend
+ * The window.__socialchatPasskeyBridge flag is set by bridge-flag.js, which the
+ * manifest runs in the page's main world.
+ *
+ * 1. Listens for window 'message' events from the Socialchat frontend
  *    (socialchat-passkey-request) and forwards them to the background script.
- * 3. Returns the result (or error) back to the page via window.postMessage.
+ * 2. Returns the result (or error) back to the page via window.postMessage.
  */
-
-// --- Inject bridge flag into main world ---
-const flagScript = document.createElement('script')
-flagScript.textContent = 'window.__socialchatPasskeyBridge = true;'
-;(document.head || document.documentElement).appendChild(flagScript)
-flagScript.remove()
 
 // --- Listen for passkey requests from the page ---
 window.addEventListener('message', (event) => {
