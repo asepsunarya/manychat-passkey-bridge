@@ -50,6 +50,11 @@ async function handlePasskeyRequest (publicKeyJson, sender) {
     throw new Error('Tab web.whatsapp.com ditemukan tetapi belum selesai dimuat. Tunggu hingga WhatsApp Web terbuka.')
   }
 
+  // WebAuthn rejects requests from a document without focus, so bring the
+  // WhatsApp Web tab to the front before asking for the passkey
+  await chrome.windows.update(tab.windowId, { focused: true })
+  await chrome.tabs.update(tab.id, { active: true })
+
   // Inject the passkey request into the tab's main world
   let results
   try {
@@ -63,16 +68,29 @@ async function handlePasskeyRequest (publicKeyJson, sender) {
     throw new Error(`Gagal menginject script ke tab web.whatsapp.com: ${err.message}`)
   }
 
-  if (results && results[0] && results[0].result !== undefined && results[0].result !== null) {
-    return results[0].result
+  const result = results?.[0]?.result
+  if (!result) {
+    throw new Error('Tidak ada respons passkey dari web.whatsapp.com.')
   }
-
-  // If result is null, the user may have cancelled the passkey prompt
-  if (results && results[0] && results[0].result === null) {
-    throw new Error('User membatalkan prompt passkey di web.whatsapp.com.')
+  if (result.error) {
+    throw new Error(describePasskeyError(result.error))
   }
+  return result.credential
+}
 
-  throw new Error('Tidak ada respons passkey dari web.whatsapp.com.')
+/**
+ * Turn the WebAuthn error thrown in the web.whatsapp.com tab into a message
+ * that keeps the original error name and text for troubleshooting.
+ */
+function describePasskeyError ({ name, message }) {
+  const detail = `${name}: ${message}`
+  if (name === 'NotAllowedError') {
+    return `Prompt passkey dibatalkan, habis waktu, atau ditolak browser (${detail}).`
+  }
+  if (name === 'SecurityError') {
+    return `Browser menolak passkey karena domain tidak cocok (${detail}).`
+  }
+  return `Passkey gagal di web.whatsapp.com (${detail}).`
 }
 
 /**
@@ -81,9 +99,18 @@ async function handlePasskeyRequest (publicKeyJson, sender) {
  * serializes the result to a plain JSON-compatible object.
  */
 async function getPasskeyCredential (publicKeyJson) {
-  const opts = PublicKeyCredential.parseRequestOptionsFromJSON(JSON.parse(publicKeyJson))
-  const cred = await navigator.credentials.get({ publicKey: opts })
-  if (!cred) return null
+  // chrome.scripting turns a thrown error into a null result, so return the
+  // error as data to keep its name and message
+  let cred
+  try {
+    const opts = PublicKeyCredential.parseRequestOptionsFromJSON(JSON.parse(publicKeyJson))
+    cred = await navigator.credentials.get({ publicKey: opts })
+  } catch (err) {
+    return { error: { name: err.name, message: err.message } }
+  }
+  if (!cred) {
+    return { error: { name: 'NotAllowedError', message: 'navigator.credentials.get() returned no credential.' } }
+  }
 
   const response = cred.response
 
@@ -98,16 +125,18 @@ async function getPasskeyCredential (publicKeyJson) {
   }
 
   return {
-    id: cred.id,
-    rawId: bufferToBase64url(cred.rawId),
-    type: cred.type,
-    response: {
-      clientDataJSON: bufferToBase64url(response.clientDataJSON),
-      authenticatorData: bufferToBase64url(response.authenticatorData),
-      signature: bufferToBase64url(response.signature),
-      userHandle: response.userHandle
-        ? bufferToBase64url(response.userHandle)
-        : null
+    credential: {
+      id: cred.id,
+      rawId: bufferToBase64url(cred.rawId),
+      type: cred.type,
+      response: {
+        clientDataJSON: bufferToBase64url(response.clientDataJSON),
+        authenticatorData: bufferToBase64url(response.authenticatorData),
+        signature: bufferToBase64url(response.signature),
+        userHandle: response.userHandle
+          ? bufferToBase64url(response.userHandle)
+          : null
+      }
     }
   }
 }
